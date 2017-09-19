@@ -9,22 +9,85 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: data (see the section on the Weight Lifting Exercise Dataset)
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r libraries, warning=FALSE, message=FALSE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+library(knitr)
 ```
 
-## Including Plots
+## Data
+The training data for this project are available here:
 
-You can also embed plots, for example:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](training data)
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](test)
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Goal
+The goal of your project is to predict the manner in which they did the exercise. This is the ??????classe?????? variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Getting data
+
+```{r}
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainUrl), na.strings = c("NA",""))
+test <- read.csv(url(testUrl), na.strings = c("NA",""))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+## Cleaning data
+Deleting missing values
+```{r cleaning, echo=TRUE}
+training <- training[, colSums(is.na(training)) == 0]
+test <- test[, colSums(is.na(test)) == 0]
+```
+Omit variables with low prediction power
+```{r omit, echo=TRUE}
+training.cleaned <- training[,-c(1:7)]
+test.cleaned <- test[,-c(1:7)]
+dim(training.cleaned); dim(test.cleaned)
+```
+The cleaned data has 19622 rows and 53 columns. The test data set has 20 rows and 53 columns.
+
+## Spliting the data
+Creating the train and test data set in order to get out-of-sample errors. The training.cleaned data were split into 70% and 30% (test).
+
+```{r split, echo=TRUE}
+set.seed(1234)
+inTrain <- createDataPartition(training.cleaned$classe, p=0.7, list=FALSE)
+training.train <- training.cleaned[inTrain, ]
+training.valid <- training.cleaned[-inTrain, ]
+dim(training.train); dim(training.valid)
+```
+## Prediction Algorithm
+Random forest
+```{r random, echo=TRUE}
+mtry <- tuneRF(training.train[,-53], training.train$classe, ntreeTry=500, stepFactor=1.5,improve=0.01, 
+               plot=FALSE, trace=TRUE, dobest=FALSE)
+fit_rt <- randomForest(classe~., data=training.train, mtry=9, ntree=500)
+```
+
+Predicting the outcomes using a valid set
+```{r}
+predict_rf <- predict(fit_rt, training.valid)
+conf_rf <- confusionMatrix(training.valid$classe, predict_rf)
+conf_rf
+accuracy_rf <- conf_rf$overall[1]
+accuracy_rf
+```
+Good accuracy
+## Prediction
+```{r}
+(predict(fit_rt, test.cleaned))
+```
+
